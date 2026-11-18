@@ -6,7 +6,7 @@
   <h3>Autonomous AI study partner that turns exam traps and study notes into an interactive, living prerequisite Knowledge DAG with Socratic voice coaching.</h3>
   <p>
     <a href="https://gemmate.inusha.me"><strong>🌐 Live Demo: gemmate.inusha.me</strong></a> &bull;
-    <a href="https://github.com/inusha-thathsara/Gemmate"><strong>📦 GitHub Repository</strong></a>
+    <a href="https://github.com/inusha-thathsara/PromptWars"><strong>📦 GitHub Repository</strong></a>
   </p>
 </div>
 
@@ -103,8 +103,8 @@ graph TD
 
 ```bash
 # Clone the repository
-git clone https://github.com/inusha-thathsara/Gemmate.git
-cd Gemmate
+git clone https://github.com/inusha-thathsara/PromptWars.git
+cd PromptWars
 
 # Install dependencies
 npm install
