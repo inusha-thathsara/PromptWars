@@ -54,6 +54,22 @@ declare module "lucide-react" {
   export const FileText: LucideIcon;
   export const Image: LucideIcon;
   export const HeartHandshake: LucideIcon;
+  export const Clock: LucideIcon;
+  export const Lock: LucideIcon;
+  export const Unlock: LucideIcon;
+  export const GitBranch: LucideIcon;
+  export const BrainCircuit: LucideIcon;
+  export const ShieldAlert: LucideIcon;
+  export const Layers: LucideIcon;
+  export const Send: LucideIcon;
+  export const Search: LucideIcon;
+  export const Sword: LucideIcon;
+  export const Bot: LucideIcon;
+  export const User: LucideIcon;
+  export const History: LucideIcon;
+  export const Zap: LucideIcon;
+  export const Compass: LucideIcon;
+  export const Mic: LucideIcon;
   const icon: LucideIcon;
   export default icon;
 }

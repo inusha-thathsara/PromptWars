@@ -8,6 +8,7 @@ import rehypeKatex from "rehype-katex";
 import VoiceButton from "./VoiceButton";
 
 export interface TriageData {
+  domainTitle?: string;
   coreConcepts: string[];
   theTrap: string[];
   attackPlan: string[];
@@ -15,6 +16,7 @@ export interface TriageData {
   modelUsed?: string;
   inferenceMode?: string;
   latencyMs?: number;
+  wovenNodesCount?: number;
 }
 
 const CARDS = [
@@ -55,6 +57,27 @@ const MD_PLUGINS = {
   rehype: [rehypeKatex] as Parameters<typeof ReactMarkdown>[0]["rehypePlugins"],
 };
 
+function asText(item: unknown): string {
+  if (typeof item === "string") return item;
+  if (typeof item === "number" || typeof item === "boolean")
+    return String(item);
+  if (item && typeof item === "object") {
+    const obj = item as Record<string, unknown>;
+    if (typeof obj.text === "string") return obj.text;
+    if (typeof obj.step === "string") return obj.step;
+    return Object.entries(obj)
+      .map(([k, v]) => {
+        const cleanKey = k.replace(/\*+$/g, "").trim();
+        const cleanVal =
+          typeof v === "string" ? v.trim() : v ? JSON.stringify(v) : "";
+        return cleanVal ? `${cleanKey}: ${cleanVal}` : cleanKey;
+      })
+      .join(" ")
+      .trim();
+  }
+  return "";
+}
+
 export default function ResultCards({ data }: { data: TriageData }) {
   return (
     <motion.div
@@ -68,11 +91,11 @@ export default function ResultCards({ data }: { data: TriageData }) {
         // Build spoken text for ElevenLabs voice coach
         const speechText =
           card.key === "concepts"
-            ? `Here are the core concepts: ${data.coreConcepts.join(". ")}`
+            ? `Here are the core concepts: ${data.coreConcepts.map(asText).join(". ")}`
             : card.key === "trap"
-              ? `Watch out for the traps in this question: ${data.theTrap.join(". ")}`
+              ? `Watch out for the traps in this question: ${data.theTrap.map(asText).join(". ")}`
               : `Here is your attack plan to solve this question: ${data.attackPlan
-                  .map((step, idx) => `Step ${idx + 1}: ${step}`)
+                  .map((step, idx) => `Step ${idx + 1}: ${asText(step)}`)
                   .join(". ")}`;
 
         return (
@@ -199,7 +222,7 @@ export default function ResultCards({ data }: { data: TriageData }) {
                           boxShadow: `0 0 6px ${card.iconColor}80`,
                         }}
                       />
-                      {concept}
+                      {asText(concept)}
                     </motion.li>
                   ))}
                 </ul>
@@ -258,7 +281,7 @@ export default function ResultCards({ data }: { data: TriageData }) {
                           remarkPlugins={MD_PLUGINS.remark}
                           rehypePlugins={MD_PLUGINS.rehype}
                         >
-                          {trap}
+                          {asText(trap)}
                         </ReactMarkdown>
                       </div>
                     </motion.div>
@@ -310,7 +333,7 @@ export default function ResultCards({ data }: { data: TriageData }) {
                           flex: 1,
                         }}
                       >
-                        {step}
+                        {asText(step)}
                       </p>
                     </motion.div>
                   ))}

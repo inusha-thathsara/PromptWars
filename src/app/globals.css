@@ -21,35 +21,37 @@
   --text-3: #6b83ab;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
-html,
-body {
-  background: var(--bg);
-  color: var(--text-1);
-  font-family:
-    "Inter",
-    system-ui,
-    -apple-system,
-    sans-serif;
-  min-height: 100dvh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  html,
+  body {
+    background: var(--bg);
+    color: var(--text-1);
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-html {
-  color-scheme: dark;
-}
+  html {
+    color-scheme: dark;
+  }
 
-:focus-visible {
-  outline: 2px solid #93c5fd;
-  outline-offset: 2px;
+  :focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 2px;
+  }
 }
 
 .sr-only {

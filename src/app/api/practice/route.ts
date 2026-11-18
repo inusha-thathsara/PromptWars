@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth, getClientIp } from "../../../../lib/apiAuth";
 import { checkRateLimit } from "../../../../lib/rateLimit";
 import { practiceSchema, firstIssueMessage } from "../../../../lib/validation";
-import { serverError } from "../../../../lib/apiError";
 import { generatePracticeQuestion } from "../../../../lib/gemmaEnv";
 
 export async function POST(req: NextRequest) {

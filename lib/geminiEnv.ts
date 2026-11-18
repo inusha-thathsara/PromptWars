@@ -3,6 +3,7 @@ import path from "path";
 import {
   GoogleGenerativeAI,
   GenerateContentResult,
+  GenerationConfig,
   Part,
 } from "@google/generative-ai";
 
@@ -29,7 +30,7 @@ export function getGeminiApiKey(): string | undefined {
 }
 
 /**
- * Returns the configured Gemini model (default: "gemini-3.6-flash").
+ * Returns the configured Gemini model (default: "gemini-3.1-flash-lite-preview").
  */
 export function getGeminiModel(): string {
   try {
@@ -42,7 +43,7 @@ export function getGeminiModel(): string {
       }
     }
   } catch {}
-  return process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  return process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview";
 }
 
 export interface GenerateOptions {
@@ -58,10 +59,19 @@ export interface GenerateResult {
   modelUsed: string;
 }
 
+function modelSupportsThinkingConfig(modelName: string): boolean {
+  return (
+    modelName === "gemini-3.1-flash-lite-preview" ||
+    modelName === "gemini-3-flash-preview" ||
+    modelName === "gemini-3.6-flash" ||
+    modelName === "gemini-3.5-flash"
+  );
+}
+
 /**
- * Calls Gemini with automatic retry and model fallback.
- * If a model returns 503 (high demand) or 429 (rate limit), it retries with backoff
- * and cascades through candidate models (preferred -> gemini-3.6-flash -> gemini-3.5-flash).
+ * Calls Gemini with parallel wave racing (Promise.any) and per-model thinkingConfig.
+ * Races top low-latency models concurrently and cancels slower in-flight requests
+ * as soon as the first valid non-empty response arrives.
  */
 export async function generateWithFallback({
   apiKey,
@@ -73,48 +83,92 @@ export async function generateWithFallback({
   const genAI = new GoogleGenerativeAI(apiKey);
   const primary = preferredModel || getGeminiModel();
 
-  // Deduplicated candidate chain: preferred -> 3.6-flash -> 3.5-flash -> 3.1-flash-lite
-  const candidateModels = Array.from(
-    new Set([
-      primary,
-      "gemini-3.6-flash",
-      "gemini-3.5-flash",
-      "gemini-3.1-flash-lite",
-    ]),
-  );
+  const callSingleModel = async (
+    modelName: string,
+    timeoutMs: number,
+    signal: AbortSignal,
+  ): Promise<GenerateResult> => {
+    const generationConfig = {
+      temperature: 0.2,
+      ...(responseMimeType ? { responseMimeType } : {}),
+      ...(modelSupportsThinkingConfig(modelName)
+        ? { thinkingConfig: { thinkingBudget: 0 } }
+        : {}),
+    } as GenerationConfig;
 
-  let lastError: unknown;
-
-  for (const modelName of candidateModels) {
     for (let attempt = 1; attempt <= 2; attempt++) {
+      if (signal.aborted) {
+        throw new Error(`Request aborted before calling ${modelName}`);
+      }
       try {
         const model = genAI.getGenerativeModel({
           model: modelName,
           systemInstruction,
-          ...(responseMimeType
-            ? { generationConfig: { responseMimeType } }
-            : {}),
+          generationConfig,
         });
 
-        const result = await model.generateContent(contents);
+        const result = await model.generateContent(contents, {
+          timeout: timeoutMs,
+          signal,
+        });
+        const txt = result.response.text().trim();
+        if (!txt) {
+          throw new Error(`Empty response from ${modelName}`);
+        }
         return { result, modelUsed: modelName };
       } catch (err: unknown) {
-        lastError = err;
         const status = (err as { status?: number })?.status;
-        const isTransient = status === 503 || status === 429;
-
-        if (isTransient) {
-          console.warn(
-            `[Gemini] ${modelName} returned ${status} on attempt ${attempt}. Waiting 1200ms before retry/fallback...`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, 1200));
-        } else {
-          // For non-transient errors (e.g. 400 Bad Request), don't retry same model
-          break;
+        if (attempt === 1 && status === 503 && !signal.aborted) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          continue;
         }
+        if (!signal.aborted) {
+          console.warn(
+            `[Gemini] ${modelName} failed${status ? ` (${status})` : ""}`,
+          );
+        }
+        throw err;
       }
     }
+
+    throw new Error(`Model ${modelName} exhausted attempts`);
+  };
+
+  const raceModelWave = async (
+    models: string[],
+    timeoutMs: number,
+  ): Promise<GenerateResult> => {
+    const waveController = new AbortController();
+    try {
+      return await Promise.any(
+        models.map((m) => callSingleModel(m, timeoutMs, waveController.signal)),
+      );
+    } finally {
+      waveController.abort();
+    }
+  };
+
+  const wave1 = Array.from(
+    new Set([
+      primary,
+      "gemini-3.1-flash-lite-preview",
+      "gemini-3-flash-preview",
+      "gemini-3.5-flash-lite",
+    ]),
+  );
+
+  try {
+    return await raceModelWave(wave1, 10000);
+  } catch (wave1Err) {
+    console.warn("[Gemini] Wave 1 failed, trying Wave 2...", wave1Err);
   }
 
-  throw lastError;
+  const wave2 = [
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+  ];
+
+  return await raceModelWave(wave2, 12000);
 }
